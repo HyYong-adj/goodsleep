@@ -1,0 +1,23 @@
+seed: 20260910
+data:
+  manifest: /home/sleep/researchers/byoungjun/manifests/teacher_full.csv
+  embedding_root: artifacts/embeddings_b0_v1
+  input_epochs: 40
+  target_epochs: 20
+  left_context: 10
+  stride: 20
+model:
+  input_dim: 192
+  hidden_dim: 128
+  layers: 2
+  bidirectional: true
+  dropout: 0.2
+train:
+  epochs: 50
+  batch_size: 32
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  early_stopping_patience: 10
+  grad_clip_norm: 1.0
+output:
+  root: artifacts/runs

@@ -1,0 +1,17 @@
+seed: 20260910
+data:
+  manifest: /home/sleep/researchers/byoungjun/manifests/teacher_full.csv
+  cache_root: /home/sleep/researchers/byoungjun/cache/audio_compact_full
+  stats: /home/sleep/researchers/byoungjun/cache/audio_compact_full/train_stats.json
+model:
+  embedding_dim: 192
+  dropout: 0.2
+train:
+  epochs: 30
+  batch_size: 16
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  early_stopping_patience: 10
+  grad_clip_norm: 1.0
+output:
+  root: artifacts/runs
