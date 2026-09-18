@@ -47,7 +47,7 @@ def temporal_metrics(rows: list[dict]) -> dict:
     for row in rows:
         by_subject.setdefault(str(row["subject_id"]), []).append(row)
     transition_truth, transition_pred, stable_truth, stable_pred = [], [], [], []
-    rate_errors = []
+    rate_errors, true_rates, predicted_rates = [], [], []
     for subject_rows in by_subject.values():
         subject_rows.sort(key=lambda row: int(row["epoch_index"]))
         epochs = np.asarray([row["epoch_index"] for row in subject_rows], dtype=np.int64)
@@ -61,6 +61,8 @@ def temporal_metrics(rows: list[dict]) -> dict:
         changed = right_truth != left_truth
         transition_truth.extend(right_truth[changed]); transition_pred.extend(right_pred[changed])
         stable_truth.extend(right_truth[~changed]); stable_pred.extend(right_pred[~changed])
+        true_rates.append(float(changed.mean()))
+        predicted_rates.append(float((right_pred != left_pred).mean()))
         rate_errors.append(abs(float((right_pred != left_pred).mean()) - float(changed.mean())))
     def macro(left, right):
         if not left:
@@ -69,5 +71,8 @@ def temporal_metrics(rows: list[dict]) -> dict:
     return {
         "transition_macro_f1": macro(transition_truth, transition_pred),
         "stable_macro_f1": macro(stable_truth, stable_pred),
+        "true_transition_rate": None if not true_rates else float(np.mean(true_rates)),
+        "predicted_transition_rate": None if not predicted_rates else float(np.mean(predicted_rates)),
+        "transition_rate_aggregation": "subject-mean over adjacent valid epoch pairs",
         "transition_rate_error": None if not rate_errors else float(np.mean(rate_errors)),
     }

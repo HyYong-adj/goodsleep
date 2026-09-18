@@ -1,0 +1,10 @@
+# Python >= 3.11 (validated on Python 3.12).
+# B0/B1 training, input auditing, embedding generation and evaluation.
+# Compatibility ranges, not an exact environment lock.
+# An already installed compatible CUDA torch is retained by pip.
+numpy>=1.26,<3
+pandas>=2.2,<4
+PyYAML>=6.0,<7
+scikit-learn>=1.5,<2
+pyedflib>=0.1.40,<0.2
+torch>=2.8,<3

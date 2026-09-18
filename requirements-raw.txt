@@ -1,0 +1,6 @@
+# Install in .venv-raw: CPU feature extraction with a matching torch/audio pair.
+# PyPI supplies common dependencies; the PyTorch index supplies CPU wheels.
+--extra-index-url https://download.pytorch.org/whl/cpu
+-r requirements.txt
+torch==2.8.0+cpu
+torchaudio==2.8.0+cpu

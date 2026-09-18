@@ -1,0 +1,45 @@
+seed: 20260910
+experiment:
+  parent_run: artifacts/experiments/20260914T062144930455Z
+  name: conformer_epoch_bilstm40
+  hypothesis: Replacing the CNN epoch encoder with CNN+Conformer improves single-epoch and downstream BiLSTM40 validation Macro-F1.
+data:
+  manifest: artifacts/experiments/20260914T062144930455Z/manifest.csv
+  cache_root: /home/sleep/researchers/byoungjun/cache/audio_compact_full
+  stats: /home/sleep/researchers/byoungjun/cache/audio_compact_full/train_stats.json
+model:
+  type: conformer_epoch
+  embedding_dim: 192
+  layers: 2
+  num_heads: 4
+  ff_dim: 768
+  conv_kernel_size: 31
+  dropout: 0.2
+train:
+  epochs: 30
+  batch_size: 16
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  early_stopping_patience: 10
+  grad_clip_norm: 1.0
+  amp: true
+b1:
+  data:
+    input_epochs: 40
+    target_epochs: 20
+    left_context: 10
+    stride: 20
+  model:
+    input_dim: 192
+    hidden_dim: 128
+    layers: 2
+    bidirectional: true
+    dropout: 0.2
+  train:
+    epochs: 50
+    batch_size: 32
+    learning_rate: 0.0003
+    weight_decay: 0.0001
+    early_stopping_patience: 10
+    grad_clip_norm: 1.0
+    amp: true

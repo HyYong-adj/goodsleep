@@ -19,5 +19,6 @@ train:
   weight_decay: 0.0001
   early_stopping_patience: 10
   grad_clip_norm: 1.0
+  amp: true
 output:
   root: artifacts/runs

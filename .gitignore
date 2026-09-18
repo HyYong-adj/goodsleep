@@ -1,5 +1,10 @@
 __pycache__/
 .pytest_cache/
 .codex/
+.claude/
+.claude.json
+.claude.json.*
 artifacts/
 *.pt
+
+.venv*/

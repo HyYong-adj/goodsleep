@@ -1,5 +1,20 @@
 # Agent Handoff: PSG-Only Sleep Staging Research Direction
 
+> **2026-09-16 상태 노트 — 아래 전제 중 일부는 더 이상 유효하지 않다.**
+> 본 문서는 2026-09-10 작성됐다. 이후 확정된 사항을 반영하면 다음과 같다.
+>
+> | 문서의 전제 | 현재 상태 |
+> | --- | --- |
+> | §9–§10 long-context 가설 (20분 → full-night) | **답이 나왔다.** `bj-e037` full-night GRU 3 seed: causal 0.517 / bidirectional 0.517 / epoch 단독 0.390. `bj-e022` ub(양방향·2배 폭) 0.518 ≈ combo 0.506. **시간 문맥 포화** |
+> | §10 long-context cache 연구 | 전제(긴 문맥이 성능을 올린다)가 성립하지 않으므로 **착수 조건 미충족** |
+> | post-wake 비인과 teacher → causal edge student 구도 | **2026-09-15 제품 정의 변경으로 무효.** 업체 확정: "아침에 밤 전체 그래프만 필요, 실시간 불필요 → 비인과 허용, 서버 후보정 불필요(단말 내 처리)" |
+> | §8 synthetic noise consistency | byoungjun 트랙이 선행 수행 중(`bj-e048`, homeaug). 복합 가정조건 0.344 → 0.481 |
+> | §13 4-stage를 주 task로 고정 | **재협의 예정.** REM 4.77% / 287명 중 102명 REM 0 → `bj-e033`에서 3-stage 주 지표 협의가 올라와 있다 |
+>
+> 여전히 유효한 것: §3 canonical task 정의, §4 subject-disjoint split 규칙, §6 필수 metric, §15 단일 변수 원칙.
+>
+> 현재 방향은 [다음 실험 방향 제언 rev.2](PSG_RESEARCH_DIRECTION_20260916.md)를 따른다.
+
 ## 1. Objective
 
 현재 보유 가능한 데이터 조건을 기준으로, **HomeSleepNet 방법론을 직접 재현하기보다 PSG와 동기화된 audio + PSG sleep-stage label만으로 학습 가능한 supervised sleep staging baseline을 먼저 구축한다.**

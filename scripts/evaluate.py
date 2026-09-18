@@ -15,5 +15,12 @@ args = parser.parse_args()
 
 import torch
 payload = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
-rows, checkpoint = (evaluate_b0(args.checkpoint, args.split) if payload["model_type"] == "b0" else evaluate_b1(args.checkpoint, args.split))
+if payload["model_type"] == "temporal_transformer":
+    from psg_only.transformer import evaluate_transformer
+    rows, checkpoint = evaluate_transformer(args.checkpoint, args.split)
+elif payload["model_type"] in {"b0", "b1", "conformer_epoch"}:
+    evaluator = evaluate_b1 if payload["model_type"] == "b1" else evaluate_b0
+    rows, checkpoint = evaluator(args.checkpoint, args.split)
+else:
+    raise ValueError("Unknown checkpoint model type.")
 print(write_evaluation(rows, checkpoint, args.output))

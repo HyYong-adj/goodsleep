@@ -1,5 +1,7 @@
 # Agent 실행 명세: PSG-Audio B0/B1 및 후속 실험
 
+> 2026-09-14 실행 환경 업데이트: [실행 가이드](experiments/PSG_EXPERIMENT_QUICKSTART.md). 원본은 `/home/sleep/data/psg_audio/V3`로 복사 중이며 통합 실행기는 `scripts/run_experiment.py`다. 아래 기존 경로·환경 상태 설명은 최초 작성 시점 기록이다.
+
 > 이 문서는 구현 agent에게 그대로 전달하는 작업 지시서다. 설명 문서가 아니라 파일 변경, 테스트, 실행, 중단 조건을 정의한다.
 
 ## 1. 최종 목표

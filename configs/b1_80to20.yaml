@@ -1,0 +1,29 @@
+seed: 20260910
+data:
+  manifest: /home/sleep/researchers/choihy/artifacts/experiments/20260914T062144930455Z/manifest.csv
+  embedding_root: /home/sleep/researchers/choihy/artifacts/experiments/20260914T062144930455Z/embeddings
+  input_epochs: 80
+  target_epochs: 20
+  left_context: 30
+  stride: 20
+model:
+  input_dim: 192
+  hidden_dim: 128
+  layers: 2
+  bidirectional: true
+  dropout: 0.2
+train:
+  epochs: 50
+  batch_size: 32
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  early_stopping_patience: 10
+  grad_clip_norm: 1.0
+  amp: true
+output:
+  root: artifacts/runs
+experiment:
+  parent_run: /home/sleep/researchers/choihy/artifacts/experiments/20260914T062144930455Z
+  name: b1_80to20_context
+  hypothesis: 40-minute context improves REM/Deep discrimination over 20-minute context
+    with the same frozen B0 embeddings.

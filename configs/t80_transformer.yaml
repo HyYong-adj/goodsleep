@@ -1,0 +1,42 @@
+seed: 20260910
+experiment:
+  alias: T80
+  parent_run: artifacts/experiments/20260914T062144930455Z
+  baseline_bilstm_run: artifacts/experiments/b1_80to20_20260914T152130
+data:
+  manifest: artifacts/experiments/20260914T062144930455Z/manifest.csv
+  embedding_root: artifacts/experiments/20260914T062144930455Z/embeddings
+  input_epochs: 80
+  target_epochs: 20
+  left_context: 30
+  stride: 20
+model:
+  type: temporal_transformer
+  input_dim: 192
+  d_model: 192
+  layers: 2
+  num_heads: 4
+  ff_dim: 512
+  activation: gelu
+  dropout: 0.2
+  norm_first: true
+  batch_first: true
+  input_norm: true
+  final_norm: true
+  position_encoding: sinusoidal
+  position_source: recording_epoch_index
+  causal: false
+train:
+  optimizer: adamw
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  epochs: 50
+  batch_size: 32
+  early_stopping_patience: 10
+  grad_clip_norm: 1.0
+  amp: true
+  loss: class_weighted_cross_entropy
+  class_weight_power: -0.5
+  ignore_index: -100
+  scheduler: none
+  selection_metric: validation_macro_f1
