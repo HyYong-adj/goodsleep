@@ -108,7 +108,11 @@ echo "== 2/3 전송: $TARGET"
 RSYNC_OPTS=(-a --human-readable --partial
             --exclude='.venv/' --exclude='.venv-raw/'
             --exclude='__pycache__/' --exclude='.pytest_cache/'
-            --exclude='.codex/auth.json')
+            --exclude='.codex/auth.json'
+            # 연구자 런처는 호스트 인프라다. 서버마다 상위 런처 호출 규약이
+            # 다르므로(예: `researchers/claude NAME`) 덮어쓰면 실행이 깨진다.
+            # git 에는 추적되므로 대상에서 working tree 가 dirty 로 보인다.
+            --exclude='/claude' --exclude='/codex')
 # 피험자 디렉터리만 뺀다. 같은 디렉터리의 train_stats.json 과 READY 는 남긴다.
 [ "$SKIP_MEL" = "1" ] && RSYNC_OPTS+=(--exclude="/vendor/cache/$MEL_NAME/*/")
 if [ "$DRY" = "1" ]; then
