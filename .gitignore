@@ -15,3 +15,6 @@ vendor/*
 !vendor/splits/
 !vendor/README.md
 !vendor/MANIFEST.sha256
+
+# 서버 이전용 staging. 자격증명은 들어가지 않지만 계정 이력과 공용 기록물을 담는다.
+_transfer/

@@ -129,3 +129,21 @@
 로 위치만 지정한다. 일상 학습은 mel 캐시만 쓰므로 필요 없고 캐시 재생성 때만 든다.
 ② `/venv/main` — `scripts/setup_env.sh` 를 돌리기 전까지. 디스크·재현성 영향이 있어
 자동 실행하지 않았다.
+
+### 서버 이전 준비 (2026-09-20)
+
+절차는 `docs/SERVER_MIGRATION.md`. 옛 서버에서 `scripts/migrate_out.sh <대상>`,
+새 서버에서 `scripts/migrate_in.sh --venv` 두 줄이다.
+
+`artifacts/`(850MB)와 `vendor/`(19GB)는 git 제외 대상이라 **git clone 만으로는
+실험을 이어갈 수 없고** rsync 가 필요하다. `_transfer/` 에 저장소 밖 자산을
+모은다 — 공용 registry·RECOVERY·TEAM(11KB), Codex/Claude 이력(76MB),
+git 번들(1.8MB, 전체 이력). 자격증명(`.codex/auth.json`)은 제외한다.
+
+`migrate_in.sh` 는 동결 split 해시 → vendor 484개 해시 → mel 캐시 집계 지문 →
+parent 산출물 존재 → `.venv` → 테스트 → 입력 검증 → GPU 순으로 확인하고,
+어긋나면 중단한다. 공용 기록물은 자동 전개하지 않는다(여러 연구자 공용 영역).
+
+계정을 다른 경로로 복사해 리허설했다: 테스트 83건 통과, GPU smoke 학습 완주,
+`validation_macro_f1` 이 원래 경로 실행과 동일(같은 GPU), 새 체크포인트의 두
+해시가 기존 실험과 동일, strace 기준 원래 계정·타 연구자 데이터 접근 0건.
