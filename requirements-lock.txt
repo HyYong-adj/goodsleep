@@ -27,3 +27,6 @@ PyYAML==6.0.3
 scikit-learn==1.9.0
 pyedflib==0.1.42
 scipy==1.18.1
+
+# 테스트 도구. migrate_in.sh 의 검증 단계가 쓴다.
+pytest==9.1.1

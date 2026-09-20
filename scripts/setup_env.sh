@@ -26,6 +26,10 @@ fi
 "$PSG_ROOT/.venv/bin/python" -m pip install --upgrade pip
 "$PSG_ROOT/.venv/bin/python" -m pip install -r "$PSG_ROOT/requirements-lock.txt"
 
+# 검증도 환경의 일부다. 고정본에 pytest 가 없으면 dev 목록으로 채운다.
+"$PSG_ROOT/.venv/bin/python" -c 'import pytest' 2>/dev/null \
+  || "$PSG_ROOT/.venv/bin/python" -m pip install -r "$PSG_ROOT/requirements-dev.txt"
+
 # 남의 src 가 sys.path 에 섞여 들어오지 않는지 확인한다.
 "$PSG_ROOT/.venv/bin/python" - <<'PY'
 import sys
