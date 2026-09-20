@@ -74,12 +74,19 @@ fi
 # 어느 산출물이 어느 실행의 것인지 알 수 없게 된다.
 EXISTING=$(run_there "ls -A '$REMOTE_PATH' 2>/dev/null | head -20" || true)
 if [ -n "$EXISTING" ]; then
-  echo "  대상이 비어 있지 않다:"
-  echo "$EXISTING" | sed 's/^/    /'
-  OCCUPIED=$(run_there "ls -d '$REMOTE_PATH'/artifacts '$REMOTE_PATH'/vendor 2>/dev/null" || true)
-  if [ -n "$OCCUPIED" ] && [ "$FORCE" != "1" ]; then
-    echo "  artifacts/ 또는 vendor/ 가 이미 있다. 내용을 확인하고 --force 로 진행하라." >&2
-    exit 1
+  # 이 트랙을 전에 보낸 곳이면 재동기화가 정상이다. 같은 저장소인지로 가른다.
+  OURS=$(run_there "git -C '$REMOTE_PATH' rev-list --max-parents=0 HEAD 2>/dev/null | tail -1" || true)
+  ROOT_COMMIT=$(git -C "$PSG_ROOT" rev-list --max-parents=0 HEAD | tail -1)
+  if [ -n "$OURS" ] && [ "$OURS" = "$ROOT_COMMIT" ]; then
+    echo "  이 트랙의 기존 사본이다(같은 저장소). 재동기화로 진행한다."
+  else
+    echo "  대상이 비어 있지 않고 이 트랙의 사본도 아니다:"
+    echo "$EXISTING" | sed 's/^/    /'
+    OCCUPIED=$(run_there "ls -d '$REMOTE_PATH'/artifacts '$REMOTE_PATH'/vendor 2>/dev/null" || true)
+    if [ -n "$OCCUPIED" ] && [ "$FORCE" != "1" ]; then
+      echo "  artifacts/ 또는 vendor/ 가 이미 있다. 내용을 확인하고 --force 로 진행하라." >&2
+      exit 1
+    fi
   fi
 fi
 
