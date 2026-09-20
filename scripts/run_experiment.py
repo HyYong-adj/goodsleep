@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 from psg_only.data import validate_inputs
 from psg_only.raw import relocated_manifest, audit_raw
+from psg_only.paths import manifests, mel_cache, raw_root
 from psg_only.provenance import file_hash
 
 
@@ -23,9 +24,9 @@ def main():
     parser.add_argument('--b1-config', type=Path, default=ROOT/'configs/b1_40to20.yaml')
     parser.add_argument('--parent-run', type=Path, help='Compare a B0-LR ablation against this completed full run.')
     parser.add_argument('--source', choices=['cached', 'raw'], default='cached')
-    parser.add_argument('--raw-root', type=Path, default=Path('/home/sleep/data/psg_audio'))
-    parser.add_argument('--manifest', type=Path, default=Path('/home/sleep/researchers/byoungjun/manifests/teacher_full.csv'))
-    parser.add_argument('--cache-root', type=Path, default=Path('/home/sleep/researchers/byoungjun/cache/audio_compact_full'))
+    parser.add_argument('--raw-root', type=Path, default=raw_root())
+    parser.add_argument('--manifest', type=Path, default=manifests() / 'teacher_full.csv')
+    parser.add_argument('--cache-root', type=Path, default=mel_cache())
     parser.add_argument('--output', type=Path)
     parser.add_argument('--seed', type=int, default=20260910)
     parser.add_argument('--smoke', action='store_true')

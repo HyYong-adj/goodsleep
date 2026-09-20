@@ -31,6 +31,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from psg_only.constants import CANONICAL_CLASSES, CLASS_ORDER_VERSION  # noqa: E402
 from psg_only.data import EmbeddingWindowDataset  # noqa: E402
 from psg_only.evaluate import evaluate_b1, write_evaluation  # noqa: E402
+from psg_only.paths import resolve  # noqa: E402
 from psg_only.train import (build_scheduler, class_weights, config_hash, device_for_run,  # noqa: E402
                             load_config, seed_everything)
 from psg_only.windows import context_options  # noqa: E402
@@ -53,7 +54,7 @@ class KDWindowDataset(EmbeddingWindowDataset):
 
     def __init__(self, *args, teacher_root, **kwargs):
         super().__init__(*args, **kwargs)
-        self.teacher_root = Path(teacher_root)
+        self.teacher_root = resolve(teacher_root)
         self._teacher: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 
     def _teacher_arrays(self, subject_id):

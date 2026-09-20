@@ -8,3 +8,10 @@ artifacts/
 *.pt
 
 .venv*/
+
+# 복사해 온 외부 의존 자산(vendor/). AGENTS.md 상 캐시된 logits/feature 와
+# 대용량 산출물은 ordinary Git 금지다. 승인된 동결 split 과 출처/해시 기록만 추적한다.
+vendor/*
+!vendor/splits/
+!vendor/README.md
+!vendor/MANIFEST.sha256

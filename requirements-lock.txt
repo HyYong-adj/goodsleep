@@ -1,0 +1,29 @@
+# 2026-09-20 기준 실제 학습에 쓰인 정확한 버전.
+#
+# `requirements.txt` 는 호환 범위이고 이 파일은 **실측 고정본**이다. 둘을 나눈
+# 이유는 이 트랙의 결과가 수치적으로 스택에 민감하기 때문이다. STATUS.md 의
+# 방법론 발견 2 번대로 GPU 가 다르면 embedding 요소의 약 0.05% 가 달라지고 그
+# 차이가 downstream 을 발산시킨다. 라이브러리 버전이 바뀌면 커널 선택이 또
+# 달라지므로, 기존 실험과 비교할 값을 다시 만들 때는 이 고정본을 쓴다.
+#
+# 지금까지의 실행 환경은 호스트 이미지의 `/venv/main` 이었다. 그 venv 에는
+# 다른 연구자가 editable 설치한 `__editable__.sleep_audio_kd-0.1.0.pth` 가 있어
+# `/home/sleep/researchers/byoungjun/src` 가 sys.path 에 올라온다. 모듈 이름이
+# 겹치지 않아(`sleep_kd` vs `psg_only`) 현재 실해는 없지만, 계정을 옮기면
+# `/venv/main` 자체가 없다. 복원 시에는 `scripts/setup_env.sh` 로 저장소 안에
+# `.venv` 를 만든다.
+#
+# CUDA 13.0 / cuDNN 9.24 런타임에서 torch 2.14.0+cu130 을 썼다. 다른 CUDA
+# 세대에서는 같은 휠을 설치할 수 없으므로, 그때는 버전 변경을 실험 기록에
+# 남기고 C0 류의 동일 환경 대조군을 함께 돌린다.
+
+--extra-index-url https://download.pytorch.org/whl/cu130
+
+torch==2.14.0+cu130
+torchaudio==2.11.0
+numpy==2.5.3
+pandas==3.0.5
+PyYAML==6.0.3
+scikit-learn==1.9.0
+pyedflib==0.1.42
+scipy==1.18.1

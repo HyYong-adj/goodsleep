@@ -12,6 +12,7 @@ import torch
 from torch.utils.data import Dataset
 
 from .constants import CANONICAL_CLASSES, CLASS_ORDER_VERSION, remap_legacy_labels
+from .paths import resolve
 from .provenance import file_hash
 from .windows import context_options
 
@@ -21,7 +22,7 @@ REQUIRED_COLUMNS = {
 
 
 def read_manifest(path: str | Path) -> pd.DataFrame:
-    frame = pd.read_csv(path, dtype={"subject_id": str})
+    frame = pd.read_csv(resolve(path), dtype={"subject_id": str})
     missing = REQUIRED_COLUMNS - set(frame.columns)
     if missing:
         raise ValueError(f"Manifest missing columns: {sorted(missing)}")
@@ -57,7 +58,7 @@ def read_manifest(path: str | Path) -> pd.DataFrame:
 
 
 def train_stats(path: str | Path) -> tuple[float, float]:
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    payload = json.loads(resolve(path).read_text(encoding="utf-8"))
     mean, std = float(payload["mean"]), float(payload["std"])
     if not np.isfinite(mean) or not np.isfinite(std) or std <= 0:
         raise ValueError("Invalid train normalization statistics.")
@@ -75,7 +76,7 @@ def night_statistics(subject_root: str | Path) -> tuple[float, float]:
     라벨을 쓰지 않는 입력 신호만의 정규화이며, 밤 전체를 요구하므로 실시간
     경로에는 쓸 수 없다. 현재 제품 정의(아침 밤 전체 그래프, 비인과 허용)에서는 허용된다.
     """
-    root = Path(subject_root)
+    root = resolve(subject_root)
     cached = root / "night_stats.json"
     if cached.is_file():
         payload = json.loads(cached.read_text())
@@ -114,7 +115,7 @@ def _subject_rows(frame: pd.DataFrame, split: str, subject_limit: int | None = N
 
 def validate_inputs(manifest_path: str | Path, cache_root: str | Path, stats_path: str | Path) -> dict:
     frame = read_manifest(manifest_path)
-    root = Path(cache_root)
+    root = resolve(cache_root)
     train_stats(stats_path)
     groups = {name: set(frame.loc[frame.split == name, "subject_id"]) for name in ("train", "val", "test")}
     if groups["train"] & groups["val"]:
@@ -172,7 +173,7 @@ class CachedMelEpochDataset(Dataset):
         if split not in {"train", "val"}:
             raise ValueError("Only train and val are permitted.")
         self.frame = _subject_rows(read_manifest(manifest_path), split, subject_limit)
-        self.root = Path(cache_root)
+        self.root = resolve(cache_root)
         self.night_norm = bool(night_norm)
         self._night_stats: dict[str, tuple[float, float]] = {}
         self.mean, self.std = train_stats(stats_path)
@@ -254,7 +255,7 @@ class MelWindowDataset(Dataset):
         self.input_epochs, self.target_epochs = input_epochs, target_epochs
         self.left_context = (input_epochs - target_epochs) // 2
         self.frame = _subject_rows(read_manifest(manifest_path), split, subject_limit)
-        self.root = Path(cache_root)
+        self.root = resolve(cache_root)
         self.night_norm = bool(night_norm)
         self.mean, self.std = train_stats(stats_path)
         self._night_stats: dict[str, tuple[float, float]] = {}
@@ -345,7 +346,7 @@ class EmbeddingWindowDataset(Dataset):
         self.target_epochs = target_epochs
         self.left_context = (input_epochs - target_epochs) // 2
         self.frame = _subject_rows(read_manifest(manifest_path), split, subject_limit)
-        self.root, self.split = Path(embedding_root), split
+        self.root, self.split = resolve(embedding_root), split
         self._arrays: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
         self.groups: dict[str, int] = {}
         self.provenance = None

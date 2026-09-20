@@ -28,6 +28,7 @@ from psg_only.data import MelWindowDataset  # noqa: E402
 from run_phase4 import gated_kd_loss  # noqa: E402
 from psg_only.endtoend import endtoend_from_config  # noqa: E402
 from psg_only.metrics import evaluate_predictions  # noqa: E402
+from psg_only.paths import resolve
 from psg_only.provenance import file_hash  # noqa: E402
 from psg_only.train import (build_scheduler, class_weights, config_hash, device_for_run,
                             seed_everything, spec_augment)  # noqa: E402
@@ -44,7 +45,7 @@ class KDMelWindowDataset(MelWindowDataset):
 
     def __init__(self, *args, teacher_root, **kwargs):
         super().__init__(*args, **kwargs)
-        self.teacher_root = Path(teacher_root)
+        self.teacher_root = resolve(teacher_root)
         self._teacher = {}
 
     def _teacher_arrays(self, subject_id):

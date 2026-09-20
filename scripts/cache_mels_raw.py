@@ -22,6 +22,7 @@ import torchaudio
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from psg_only.raw import audit_raw
 from psg_only.data import read_manifest
+from psg_only.paths import raw_root
 from psg_only.provenance import file_hash
 TARGET_RATE = 8000
 N_MELS = 48
@@ -33,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--device", default="cpu", choices=["cpu"])
-    parser.add_argument("--raw-root", default="/home/sleep/data/psg_audio")
+    parser.add_argument("--raw-root", default=str(raw_root()))
     parser.add_argument("--batch-size", type=int, default=12)
     parser.add_argument("--limit-subjects", type=int, default=0)
     return parser.parse_args()

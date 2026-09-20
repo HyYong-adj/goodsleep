@@ -81,3 +81,51 @@
 `scripts/run_phase{1,2,3,4}.py`, `scripts/build_teacher_cache.py`(PSG teacher logits 를 canonical 순서·epoch 축으로 변환, argmax 일치율 .8951 로 검증).
 테스트 44 → **72건 통과**. 무결성 게이트 2종 통과: ① 옵션 off 시 parent Macro-F1 비트 단위 재현 ② embedding 재생성 2 ULP 이내.
 구현 중 잡은 버그 2건: `evaluate_b0` 가 night_norm 을 무시(학습/평가 정규화 불일치), end-to-end 루프에서 지역변수 `batch` 가 dataloader 튜플을 가림. 둘 다 정규 실행 전 smoke 에서 검출.
+
+### 계정 독립 실행 (2026-09-20)
+
+이 트랙은 mel 캐시·manifest·PSG teacher logits 를 `researchers/byoungjun/` 에서,
+동결 split 을 공용 `data/splits/` 에서 절대경로로 직접 읽고 있었다. 인스턴스
+볼륨이 없어 외부 백업이 필요한 상황에서, 계정만 옮기면 이 경로가 전부 끊긴다.
+사본을 `vendor/` 에 두고 경로를 이 계정 안으로 닫았다.
+
+| 자산 | 크기 | 재생성 |
+|---|---|---|
+| `vendor/cache/audio_compact_full/` | 19 GB, 235명 | `cache_mels_raw.py` 로 원본 919 GB 에서 약 2.7 h |
+| `vendor/cache/teacher_targets/` | 68 MB, 235명 | PSG teacher(bj-e001) 없이 불가 |
+| `vendor/manifests/` (`teacher_full.csv`, `cv5/`) | 108 MB | 불가 |
+| `vendor/splits/` (동결 split v1) | 16 KB | 불가 |
+
+복사 직후 `rsync -rcn` 전체 체크섬 대조로 원본과 **바이트 동일** 확인(차이 0건).
+`vendor/` 는 공용 `data/` 가 아니며 원본을 고치지 않았다. git 은 AGENTS.md 에 따라
+동결 split 과 `MANIFEST.sha256`(작은 자산 484개 해시)·출처 기록만 추적한다.
+
+**config 는 고치지 않고 파일을 여는 지점에서 해석한다**(`src/psg_only/paths.py`).
+`config_hash` 는 config 를 통째로 직렬화하므로 로드 시 경로를 다시 쓰면 기존
+체크포인트의 자기 검증이 전부 깨진다. 덕분에 보관된 run config 19 개는 **기록
+그대로** 둔 채 동작한다. 새 config 는 `${VENDOR}`/`${REPO}` 를 써서 config_hash 가
+기계마다 달라지지 않는다.
+
+비교 가능성이 유지됨을 확인한 근거:
+- 기존 conformer parent 체크포인트의 `manifest_hash`·`stats_hash` 가 사본에서 일치.
+  내용 해시라 경로 변경의 영향을 받지 않는다.
+- embedding provenance 의 `source_cache` 는 basename 만 기록한다. 사본의
+  디렉터리 이름을 `audio_compact_full` 로 유지해 기존 embedding 캐시가 그대로 열린다.
+  **이 이름을 바꾸면 `Mixed embedding provenance` 로 거부된다** (`test_paths.py` 가 고정).
+- GPU smoke 학습이 사본만으로 완주하고, 새 체크포인트의 두 해시가 기존 값과 동일.
+
+인터프리터도 호스트 것이었다. `/venv/main` 에는 다른 연구자의 editable 설치
+(`__editable__.sleep_audio_kd-0.1.0.pth`)가 있어 `byoungjun/src` 가 sys.path 에
+올라온다. 모듈 이름이 겹치지 않아(`sleep_kd` vs `psg_only`) 실해는 없었으나 계정을
+옮기면 venv 자체가 없다. `scripts/_env.sh` 가 저장소 `.venv` → `/venv/main` 순으로
+고르고, `scripts/setup_env.sh` 와 `requirements-lock.txt`(torch 2.14.0+cu130 등 실측
+고정본)로 재구성한다. **버전을 바꾸면 커널 선택이 달라지므로**(방법론 발견 2번)
+기존 값과 비교할 때는 고정본을 쓰고, 불가피하면 동일 환경 대조군을 함께 돌린다.
+
+테스트 72 → **83건 통과**(`tests/test_paths.py` 11건 추가: 경로 재작성·멱등성·저장소
+기준 상대경로·basename 고정·split 해시 변조 탐지).
+
+남은 외부 의존 2가지. ① 원본 PSG-Audio 919 GB — 복사 대상이 아니며 `PSG_RAW_ROOT`
+로 위치만 지정한다. 일상 학습은 mel 캐시만 쓰므로 필요 없고 캐시 재생성 때만 든다.
+② `/venv/main` — `scripts/setup_env.sh` 를 돌리기 전까지. 디스크·재현성 영향이 있어
+자동 실행하지 않았다.

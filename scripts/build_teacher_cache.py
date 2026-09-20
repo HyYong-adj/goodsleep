@@ -1,6 +1,6 @@
 """PSG teacher logits 를 canonical 클래스 순서 + 실제 epoch 시간축으로 옮긴다.
 
-원본(`byoungjun/cache/teacher_targets`)은 legacy 순서(Wake, Light, Deep, REM)이고
+원본(`vendor/cache/teacher_targets`, byoungjun 트랙에서 복사)은 legacy 순서(Wake, Light, Deep, REM)이고
 **캐시 축**(subject_epoch_index)에 색인돼 있다. B1 은 canonical 순서(Wake, REM, Light, Deep)와
 **실제 30초 시간축**(epoch_index)을 쓰므로 둘 다 변환해야 한다. 변환 없이 쓰면
 KD 가 엉뚱한 클래스를 가르치게 되고 조용히 망가진다.
@@ -18,10 +18,11 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from psg_only.constants import CANONICAL_CLASSES, CANONICAL_LOGITS_FROM_LEGACY, CLASS_ORDER_VERSION  # noqa: E402
 from psg_only.data import read_manifest  # noqa: E402
+from psg_only.paths import mel_cache, teacher_targets  # noqa: E402
 
-SOURCE = Path("/home/sleep/researchers/byoungjun/cache/teacher_targets")
+SOURCE = teacher_targets()
 MANIFEST = ROOT / "artifacts/experiments/20260914T062144930455Z/manifest.csv"
-MEL_CACHE = Path("/home/sleep/researchers/byoungjun/cache/audio_compact_full")
+MEL_CACHE = mel_cache()
 
 
 def main() -> None:

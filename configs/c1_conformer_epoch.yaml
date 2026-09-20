@@ -5,8 +5,8 @@ experiment:
   hypothesis: Replacing the CNN epoch encoder with CNN+Conformer improves single-epoch and downstream BiLSTM40 validation Macro-F1.
 data:
   manifest: artifacts/experiments/20260914T062144930455Z/manifest.csv
-  cache_root: /home/sleep/researchers/byoungjun/cache/audio_compact_full
-  stats: /home/sleep/researchers/byoungjun/cache/audio_compact_full/train_stats.json
+  cache_root: ${VENDOR}/cache/audio_compact_full
+  stats: ${VENDOR}/cache/audio_compact_full/train_stats.json
 model:
   type: conformer_epoch
   embedding_dim: 192

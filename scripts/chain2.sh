@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Phase 4 (C3 위 cosine/KD, 12런) -> Phase 3b (end-to-end 제대로: cosine + SpecAugment + 긴 예산)
 set -u
-cd /home/sleep/researchers/choihy
+source "$(dirname "${BASH_SOURCE[0]}")/_env.sh"
 export OMP_NUM_THREADS=4 CUBLAS_WORKSPACE_CONFIG=:4096:8 CUDA_VISIBLE_DEVICES=3
-PY=/venv/main/bin/python
 L=artifacts/logs
 
 echo "[chain2 $(date -u +%FT%TZ)] Phase 4 시작"

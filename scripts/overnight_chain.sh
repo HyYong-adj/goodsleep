@@ -2,9 +2,8 @@
 # Phase 2 완료를 기다렸다가 결과를 집계하고, 이어서 Phase 3(end-to-end)를 돌린다.
 # Phase 3 가 실패해도 Phase 2 집계는 이미 저장돼 있다.
 set -u
-cd /home/sleep/researchers/choihy
+source "$(dirname "${BASH_SOURCE[0]}")/_env.sh"
 export OMP_NUM_THREADS=4 CUBLAS_WORKSPACE_CONFIG=:4096:8
-PY=/venv/main/bin/python
 P2=artifacts/experiments/phase2_20260916
 P3=artifacts/experiments/phase3_20260916
 LOG=artifacts/logs
