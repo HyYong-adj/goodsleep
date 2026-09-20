@@ -46,7 +46,15 @@ def raw_root() -> Path:
 
 
 def mel_cache() -> Path:
-    return vendor_root() / "cache" / MEL_CACHE_NAME
+    """mel 캐시(19GB). `PSG_MEL_CACHE` 로 vendor 밖을 가리킬 수 있다.
+
+    이 트랙에서 유일하게 혼자 옮기기 버거운 자산이라, 다른 사람이 옮긴 사본을
+    그대로 쓰는 경우가 있다. 그때 `vendor/` 안으로 다시 복사하지 않고 위치만
+    알려준다. 디렉터리 **이름**은 여전히 `audio_compact_full` 이어야 한다
+    (embedding provenance 가 basename 을 기록한다).
+    """
+    override = os.environ.get("PSG_MEL_CACHE")
+    return Path(override) if override else vendor_root() / "cache" / MEL_CACHE_NAME
 
 
 def train_stats_path() -> Path:
@@ -73,6 +81,8 @@ def split_csv() -> Path:
 # 긴 접두사를 먼저 봐야 `/home/sleep/data/psg_audio` 와 `/home/sleep/data/splits`
 # 처럼 뿌리를 공유하는 항목이 서로를 가리지 않는다.
 _LEGACY: tuple[tuple[str, "callable[[], Path]"], ...] = (
+    # mel 캐시는 vendor 밖에 있을 수 있으므로 더 긴 접두사로 먼저 잡는다.
+    ("/home/sleep/researchers/byoungjun/cache/" + MEL_CACHE_NAME, mel_cache),
     ("/home/sleep/researchers/byoungjun/cache", lambda: vendor_root() / "cache"),
     ("/home/sleep/researchers/byoungjun/manifests", manifests),
     ("/home/sleep/data/psg_audio", raw_root),
@@ -82,6 +92,7 @@ _LEGACY: tuple[tuple[str, "callable[[], Path]"], ...] = (
 )
 
 _PLACEHOLDERS: dict[str, "callable[[], Path]"] = {
+    "${MEL}": mel_cache,
     "${VENDOR}": vendor_root,
     "${REPO}": lambda: REPO_ROOT,
     "${RAW}": raw_root,
@@ -107,6 +118,12 @@ def resolve(path: str | Path | None) -> Path | None:
         if text == prefix or text.startswith(prefix + "/"):
             text = str(base()) + text[len(prefix):]
             break
+
+    # `${VENDOR}/cache/audio_compact_full` 처럼 vendor 안을 직접 가리키는 표기도
+    # PSG_MEL_CACHE 를 따르게 한다. 둘이 같으면 아무 일도 하지 않는다.
+    inside_vendor = str(vendor_root() / "cache" / MEL_CACHE_NAME)
+    if text == inside_vendor or text.startswith(inside_vendor + "/"):
+        text = str(mel_cache()) + text[len(inside_vendor):]
 
     resolved = Path(text)
     return resolved if resolved.is_absolute() else (REPO_ROOT / resolved)

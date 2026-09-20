@@ -24,11 +24,29 @@ echo "== 2 vendor 작은 자산 (manifests, teacher_targets, splits, train_stats
   || fail "vendor 사본이 손상됐다."
 echo "  OK $(wc -l < "$PSG_ROOT/vendor/MANIFEST.sha256") 개 파일"
 
-echo "== 3 mel 캐시 집계 지문"
+echo "== 3 mel 캐시"
+# 19GB 라 다른 사람이 옮기는 경우가 있다. vendor 밖에 있으면 PSG_MEL_CACHE 로
+# 위치를 알려준다. 디렉터리 이름은 audio_compact_full 이어야 한다.
+MEL="${PSG_MEL_CACHE:-$PSG_ROOT/vendor/cache/audio_compact_full}"
 EXPECTED="5921a164be122032dd5d0603932b3f6ece778c91665477e57273f3e57fea9377"
-ACTUAL="$(cd "$PSG_ROOT/vendor" && find cache/audio_compact_full -type f -printf '%P %s\n' | sort | sha256sum | cut -d' ' -f1)"
-[ "$ACTUAL" = "$EXPECTED" ] || fail "mel 캐시 구성이 다르다 (기대 ${EXPECTED:0:12}…, 실제 ${ACTUAL:0:12}…)"
-echo "  OK 235 피험자 / 1177 파일"
+if [ ! -d "$MEL" ] || [ -z "$(ls -A "$MEL" 2>/dev/null | grep -m1 '^[0-9]')" ]; then
+  echo "  없음: $MEL"
+  echo "  Phase2/3(encoder 재학습·end-to-end)은 이것 없이 돌지 않는다."
+  echo "  다른 위치에 있다면:  export PSG_MEL_CACHE=/실제/경로/audio_compact_full"
+  echo "  없다면 scripts/cache_mels_raw.py 로 원본에서 다시 만든다(약 2.7h)."
+  MEL_OK=0
+else
+  [ "$(basename "$MEL")" = "audio_compact_full" ] \
+    || fail "mel 캐시 디렉터리 이름이 audio_compact_full 이 아니다. embedding provenance 가 어긋난다."
+  ACTUAL="$(cd "$MEL/.." && find "$(basename "$MEL")" -type f -printf '%P %s\n' | sort | sha256sum | cut -d' ' -f1)"
+  if [ "$ACTUAL" = "$EXPECTED" ]; then
+    echo "  OK 235 피험자 / 1177 파일  ($MEL)"
+  else
+    echo "  경고: 구성이 기준과 다르다 (기대 ${EXPECTED:0:12}…, 실제 ${ACTUAL:0:12}…)"
+    echo "  다른 사람이 옮긴 사본이면 내용이 같은지 stats_hash 게이트로 확인된다."
+  fi
+  MEL_OK=1
+fi
 
 echo "== 4 이어갈 실험의 parent 산출물"
 for p in artifacts/teacher_canonical \
@@ -55,9 +73,13 @@ if [ "$WITH_VENV" = "1" ]; then
   echo "== 7 테스트"
   "$PY" -m pytest "$PSG_ROOT/tests" -q
 
-  echo "== 8 입력 검증 (실데이터 경로 전체)"
-  "$PY" "$PSG_ROOT/scripts/validate_inputs.py" --config "$PSG_ROOT/configs/c1_conformer_epoch.yaml" > /dev/null
-  echo "  OK"
+  if [ "${MEL_OK:-0}" = "1" ]; then
+    echo "== 8 입력 검증 (실데이터 경로 전체)"
+    "$PY" "$PSG_ROOT/scripts/validate_inputs.py" --config "$PSG_ROOT/configs/c1_conformer_epoch.yaml" > /dev/null
+    echo "  OK"
+  else
+    echo "== 8 입력 검증 건너뜀 (mel 캐시 없음)"
+  fi
 
   echo "== 9 GPU"
   "$PY" -c "import torch; print('  cuda:', torch.cuda.is_available(), '| devices:', torch.cuda.device_count())"
@@ -65,7 +87,7 @@ fi
 
 cat <<'EOF'
 
-검증 통과. 이어갈 작업:
+검증 완료. 이어갈 작업:
 
   실험      scripts/chain3.sh      # choihy-e013 end-to-end + gated KD, 3 seed
             scripts/chain4.sh

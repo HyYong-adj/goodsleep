@@ -47,6 +47,27 @@ def test_environment_override_moves_the_vendor_root(tmp_path, monkeypatch):
     assert resolve("/home/sleep/researchers/byoungjun/cache/x") == tmp_path / "cache/x"
 
 
+def test_mel_cache_can_live_outside_vendor(tmp_path, monkeypatch):
+    """19GB 라 다른 사람이 옮긴 사본을 그대로 쓰는 경우가 있다."""
+    external = tmp_path / "somewhere" / "audio_compact_full"
+    monkeypatch.setenv("PSG_MEL_CACHE", str(external))
+
+    assert paths.mel_cache() == external
+    assert paths.train_stats_path() == external / "train_stats.json"
+    # 옛 절대경로, vendor 안 표기, 자리표시자 — 세 형태 모두 따라가야 한다.
+    assert resolve("/home/sleep/researchers/byoungjun/cache/audio_compact_full/x") == external / "x"
+    assert resolve("${VENDOR}/cache/audio_compact_full/x") == external / "x"
+    assert resolve("${MEL}/x") == external / "x"
+    # 같은 뿌리의 다른 자산은 여전히 vendor 를 가리킨다.
+    assert resolve("/home/sleep/researchers/byoungjun/cache/teacher_targets") == paths.vendor_root() / "cache/teacher_targets"
+
+
+def test_mel_cache_override_is_idempotent(tmp_path, monkeypatch):
+    monkeypatch.setenv("PSG_MEL_CACHE", str(tmp_path / "audio_compact_full"))
+    once = resolve("${VENDOR}/cache/audio_compact_full/x")
+    assert resolve(once) == once
+
+
 def test_mel_cache_basename_is_pinned():
     """embedding provenance 가 이 basename 을 기록한다. 바꾸면 기존 캐시가 거부된다."""
     assert paths.MEL_CACHE_NAME == "audio_compact_full"

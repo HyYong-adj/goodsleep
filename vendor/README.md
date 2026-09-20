@@ -15,6 +15,7 @@
 | `splits/` | `/home/sleep/data/splits/` (공용, 승인된 동결 split) | 16 KB | **추적** |
 | `manifests/` | `researchers/byoungjun/manifests/` | 108 MB | 제외 |
 | `cache/audio_compact_full/` | `researchers/byoungjun/cache/audio_compact_full/` | 19 GB (235명, 1177 파일) | 제외 |
+| └ `train_stats.json` | 위와 같음 | 223 B | 제외(해시만) |
 | `cache/teacher_targets/` | `researchers/byoungjun/cache/teacher_targets/` | 68 MB (235명) | 제외 |
 
 `manifests/teacher_full.csv.bak_disk4path` 는 복사하지 않았다(중복 백업본).
@@ -56,6 +57,10 @@ C2/C4 의 `night_norm` 재현에 필요하므로 함께 복사했다.
 코드는 이 디렉터리를 직접 가리키지 않고 `psg_only.paths` 를 거친다.
 
 - `PSG_VENDOR_ROOT` — 이 디렉터리 위치 (기본: 저장소 뿌리의 `vendor/`)
+- `PSG_MEL_CACHE` — mel 캐시만 따로 (기본: `vendor/cache/audio_compact_full`).
+  19 GB 라 다른 사람이 옮긴 사본을 그대로 쓰는 경우가 있다. 그때 여기로 다시
+  복사하지 말고 위치만 알려준다. **디렉터리 이름은 `audio_compact_full` 이어야
+  한다** — basename 이 embedding provenance 에 박혀 있다.
 - `PSG_RAW_ROOT` — 원본 PSG-Audio 919 GB (기본: `/home/sleep/data/psg_audio`).
   **복사 대상이 아니다.** 이 트랙은 mel 캐시만 쓰므로 일상 학습에는 필요 없고,
   캐시를 처음부터 다시 만들 때만 있으면 된다.

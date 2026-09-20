@@ -9,8 +9,11 @@
 #     scripts/migrate_out.sh root@194.14.47.19:/home/sleep/researchers/choihy
 #
 # 옵션:
-#   --dry-run   실제로 보내지 않고 목록만 센다
-#   --force     대상에 이미 artifacts/ 나 vendor/ 가 있어도 진행한다
+#   --dry-run          실제로 보내지 않고 목록만 센다
+#   --force            대상에 이미 artifacts/ 나 vendor/ 가 있어도 진행한다
+#   --skip-mel-cache   19GB mel 캐시 피험자 디렉터리를 빼고 보낸다(20.7GB -> 1.3GB).
+#                      다른 사람이 그 캐시를 따로 옮길 때 쓴다. train_stats.json 은
+#                      223 바이트라 그대로 보낸다 — stats_hash 게이트가 쓴다.
 #
 # 저장소 디렉터리가 이미 vendor/(19GB) 와 artifacts/(850MB) 를 품고 있으므로
 # staging 사본을 만들지 않는다. 중복 없이 한 번에 보낸다. 저장소 밖에 있어서
@@ -22,11 +25,12 @@ set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/_env.sh"
 
-DRY=0; FORCE=0; TARGET=""
+DRY=0; FORCE=0; SKIP_MEL=0; TARGET=""
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY=1 ;;
     --force)   FORCE=1 ;;
+    --skip-mel-cache) SKIP_MEL=1 ;;
     -*)        echo "모르는 옵션: $arg" >&2; exit 1 ;;
     *)         TARGET="$arg" ;;
   esac
@@ -36,6 +40,7 @@ if [ -z "$TARGET" ]; then
   exit 1
 fi
 
+MEL_NAME="audio_compact_full"
 SSH_CMD="${RSYNC_RSH:-ssh}"
 REMOTE=""; REMOTE_PATH="$TARGET"
 case "$TARGET" in
@@ -55,8 +60,9 @@ run_there "mkdir -p '$REMOTE_PATH'"
 echo "  여유 공간:"
 run_there "df -h '$REMOTE_PATH' | tail -1" | sed 's/^/    /'
 
-NEED=$(du -sb --exclude=.venv --exclude=.venv-raw --exclude=__pycache__ \
-           --exclude=.pytest_cache "$PSG_ROOT" | cut -f1)
+DU_OPTS=(--exclude=.venv --exclude=.venv-raw --exclude=__pycache__ --exclude=.pytest_cache)
+[ "$SKIP_MEL" = "1" ] && DU_OPTS+=(--exclude="$MEL_NAME")
+NEED=$(du -sb "${DU_OPTS[@]}" "$PSG_ROOT" | cut -f1)
 AVAIL=$(run_there "df -B1 --output=avail '$REMOTE_PATH' | tail -1" | tr -d ' ')
 echo "  필요 $(numfmt --to=iec "$NEED") / 가용 $(numfmt --to=iec "$AVAIL")"
 if [ "$AVAIL" -lt "$NEED" ]; then
@@ -103,6 +109,8 @@ RSYNC_OPTS=(-a --human-readable --partial
             --exclude='.venv/' --exclude='.venv-raw/'
             --exclude='__pycache__/' --exclude='.pytest_cache/'
             --exclude='.codex/auth.json')
+# 피험자 디렉터리만 뺀다. 같은 디렉터리의 train_stats.json 과 READY 는 남긴다.
+[ "$SKIP_MEL" = "1" ] && RSYNC_OPTS+=(--exclude="/vendor/cache/$MEL_NAME/*/")
 if [ "$DRY" = "1" ]; then
   RSYNC_OPTS+=(--dry-run --stats)          # dry-run 에 진행률은 의미가 없다
 else

@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 코드·설정·문서·보고서 | 2 MB | git (`origin/main`) | git, 그리고 `_transfer/repo_*.bundle` |
 | 동결 split v1 | 16 KB | git (`vendor/splits/`) | git |
-| mel 캐시 (235명) | 19 GB | `vendor/cache/audio_compact_full/` | rsync |
+| mel 캐시 (235명) | 19 GB | `vendor/cache/audio_compact_full/` | rsync, 또는 **다른 사람이 옮긴 사본을 `PSG_MEL_CACHE` 로 가리킴** |
 | PSG teacher logits | 68 MB | `vendor/cache/teacher_targets/` | rsync |
 | manifests (`teacher_full`, `cv5`) | 108 MB | `vendor/manifests/` | rsync |
 | 실험 산출물·체크포인트 | 850 MB | `artifacts/` | rsync |
@@ -33,6 +33,29 @@ logits/feature 와 대용량 산출물은 ordinary Git 금지). **git clone 만�
 scripts/migrate_out.sh user@newhost:/path/to/choihy
 ```
 
+기본 포트가 아니거나 키를 지정해야 하면 `RSYNC_RSH` 로 준다.
+
+```bash
+RSYNC_RSH="ssh -p 22372 -i /root/.ssh/id_ed25519_migrate" \
+  scripts/migrate_out.sh root@194.14.47.19:/home/sleep/researchers/choihy
+```
+
+**mel 캐시를 다른 사람이 옮기는 경우** `--skip-mel-cache` 를 붙인다.
+전송량이 20.7 GB 에서 1.3 GB 로 줄어든다. 223 바이트짜리 `train_stats.json` 은
+`stats_hash` 게이트가 쓰므로 이 경우에도 함께 보낸다.
+
+```bash
+RSYNC_RSH="ssh -p 22372 -i ~/.ssh/id_ed25519_migrate" \
+  scripts/migrate_out.sh --skip-mel-cache root@194.14.47.19:/home/sleep/researchers/choihy
+```
+
+그 캐시가 `vendor/` 밖에 놓이면 새 서버에서 위치를 알려준다. 다시 복사할
+필요는 없다.
+
+```bash
+export PSG_MEL_CACHE=/home/sleep/researchers/byoungjun/cache/audio_compact_full
+```
+
 `_transfer/` 를 새로 만들고(공용 기록물·계정 이력·git 번들) 계정 전체를
 rsync 한다. `.venv*`, `__pycache__`, `.codex/auth.json` 은 제외한다.
 **자격증명은 옮기지 않는다** — 새 서버에서 재로그인한다.
@@ -43,7 +66,7 @@ rsync 한다. `.venv*`, `__pycache__`, `.codex/auth.json` 은 제외한다.
 scripts/migrate_out.sh /mnt/volume/choihy
 ```
 
-19 GB 가 대부분이므로 회선에 따라 시간이 걸린다. rsync 라 중단되면 이어받는다.
+mel 캐시를 함께 보내면 20.7 GB, 빼면 1.3 GB 다. rsync 라 중단되면 이어받는다.
 
 ## 새 서버에서
 
@@ -57,11 +80,13 @@ scripts/migrate_in.sh --venv
 1. **동결 split 해시** — 다르면 즉시 중단한다. split membership 이 바뀌면
    이전 실험과의 모든 비교가 무효가 되고 `test_locked` 오염은 되돌릴 수 없다.
 2. vendor 작은 자산 484 개 해시
-3. mel 캐시 집계 지문 (235 피험자 / 1177 파일)
+3. mel 캐시 — 있으면 집계 지문(235 피험자 / 1177 파일)을 대조하고, 없거나
+   다른 곳에 있으면 `PSG_MEL_CACHE` 안내를 띄우고 넘어간다(중단하지 않는다).
+   이것 없이는 Phase2/3 만 못 돌고 나머지 검증은 끝까지 간다.
 4. 이어갈 실험의 parent 산출물 — `teacher_canonical`, parent embedding,
    C3 체크포인트, e012 체크포인트
 5. `_transfer` 아카이브 해시
-6. `.venv` 구성 → 테스트 83 건 → 입력 검증 → GPU 확인
+6. `.venv` 구성 → 테스트 85 건 → 입력 검증(mel 캐시 있을 때) → GPU 확인
 
 `--venv` 없이 돌리면 1~5 만 한다(빠름).
 
@@ -116,7 +141,7 @@ e015(5-fold CV)에 필요한 `vendor/manifests/cv5/` 도 함께 옮겨진다.
 
 계정을 다른 경로로 복사해 실행한 결과:
 
-- 테스트 83 건 통과
+- 테스트 85 건 통과
 - `REPO_ROOT` 와 vendor 해석이 새 위치를 따라감
 - GPU smoke 학습 완주, `validation_macro_f1` 이 원래 경로 실행과 **동일**
   (같은 GPU 이므로 비트 재현이 성립하는 구간)
