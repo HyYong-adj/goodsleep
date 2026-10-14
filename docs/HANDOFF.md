@@ -74,6 +74,10 @@
 - **코드·문서·설정**: git(`origin` = GitHub `HyYong-adj/goodsleep`). `artifacts/`, `vendor/` 의 큰 파일, `*.pt` 는 `.gitignore` 로 제외돼 있다. AGENTS.md 가 체크포인트·캐시·raw audio 를 일반 Git 에 넣는 것을 금지하기 때문이다.
 - **체크포인트·실험 산출물**: `artifacts/` 1.9 GB (`.pt` 114개, 777 MB). 해시 목록은 `docs/CHECKPOINTS.sha256`(git 추적)에 있고, 새 서버에서 `sha256sum -c docs/CHECKPOINTS.sha256` 로 검증한다.
 - **SNUBH 로 학습한 체크포인트 30개**(`e027_*`, `e028_*`)는 내부 병원 데이터로 학습한 것이다. 연구 가설 확인용으로만 허용됐으므로 **공개 저장소·외부 공유 금지, 통제된 저장소에만 둔다.**
+- **백업 아카이브 (2026-10-14, `_transfer/`, git 제외)**:
+  - `artifacts_psgaudio_20261014T0914Z.tar.zst` (827 MB): PSG-Audio 로만 학습한 산출물과 체크포인트 84개.
+  - `artifacts_snubh_INTERNAL_20261014T0914Z.tar.zst` (375 MB): e025–e028 산출물, SNUBH 학습 체크포인트 30개, SNUBH 분할. **내부 데이터 — 통제된 저장소 전용.**
+  - 해시는 `artifacts_20261014T0914Z.sha256`. 복원: `tar -I zstd -xf <파일>` → `sha256sum -c docs/CHECKPOINTS.sha256`.
 - 이전 명령: `scripts/migrate_out.sh [--skip-mel-cache] user@newhost:/path` → 새 서버에서 `scripts/migrate_in.sh --venv`. 상세는 `docs/SERVER_MIGRATION.md`.
 
 ## 7. 반드시 지킬 규칙
