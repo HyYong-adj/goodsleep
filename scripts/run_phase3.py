@@ -28,6 +28,7 @@ from psg_only.data import MelWindowDataset  # noqa: E402
 from run_phase4 import gated_kd_loss  # noqa: E402
 from psg_only.endtoend import endtoend_from_config  # noqa: E402
 from psg_only.metrics import evaluate_predictions  # noqa: E402
+from psg_only.objectives import focal_loss, supcon_loss  # noqa: E402
 from psg_only.paths import resolve
 from psg_only.provenance import file_hash  # noqa: E402
 from psg_only.train import (build_scheduler, class_weights, config_hash, device_for_run,
@@ -82,6 +83,8 @@ def default_config(seed: int) -> dict:
             "cache_root": c1["data"]["cache_root"],
             "stats": c1["data"]["stats"],
             "night_norm": False,
+            "frontend": "logmel",
+            "frontend_stats": None,
             "input_epochs": b1["data"]["input_epochs"],
             "target_epochs": b1["data"]["target_epochs"],
             "stride": b1["data"]["stride"],
@@ -96,6 +99,10 @@ def default_config(seed: int) -> dict:
             "dropout": c1["model"]["dropout"],
             "hidden_dim": b1["model"]["hidden_dim"],
             "lstm_layers": b1["model"]["layers"],
+            "post_transformer_layers": 0,
+            "post_transformer_heads": 4,
+            "post_transformer_ff": 1024,
+            "in_channels": 1,
         },
         "train": {
             "epochs": 30,
@@ -110,6 +117,8 @@ def default_config(seed: int) -> dict:
             # SpecAugment 와 Phase 1 에서 유일하게 부호가 긍정적이던 cosine 을 붙인다.
             "scheduler": "cosine",
             "warmup_epochs": 3,
+            "focal": None,
+            "supcon": None,
             "spec_augment": {"freq_mask": 8, "time_mask": 150, "gain_std": 0.25},
             "kd": None,
         },
@@ -171,7 +180,8 @@ def run(config: dict, output: Path, smoke: bool = False) -> dict:
     window = context_options(data)
     limits = dict(subject_limit=6) if smoke else {}
     common = dict(manifest_path=data["manifest"], cache_root=data["cache_root"], stats_path=data["stats"],
-                  night_norm=bool(data.get("night_norm", False)), **window)
+                  night_norm=bool(data.get("night_norm", False)),
+                  frontend=data.get("frontend", "logmel"), frontend_stats=data.get("frontend_stats"), **window)
     kd = train_cfg.get("kd")
     maker = (lambda **kw: KDMelWindowDataset(teacher_root=TEACHER, **common, **kw)) if kd else \
             (lambda **kw: MelWindowDataset(**common, **kw))
@@ -184,6 +194,15 @@ def run(config: dict, output: Path, smoke: bool = False) -> dict:
     device = device_for_run()
     # CUDA 초기화 실패 시 device_for_run 은 조용히 CPU 를 돌려준다. 무인 장시간 실행이
     # CPU 로 떨어져 헛도는 것을 막기 위해 정규 실행에서는 즉시 실패시킨다(2026-09-18 실제 발생).
+    if not smoke and device.type == "cuda":
+        # 공용 노드다. 다른 작업이 GPU 를 거의 다 쓰고 있으면 몇 시간 뒤가 아니라 지금 실패시킨다.
+        free, total = torch.cuda.mem_get_info(device)
+        needed = 4 * 2 ** 30
+        if free < needed:
+            raise RuntimeError(
+                f"GPU free memory {free / 2**30:.1f} GiB < required {needed / 2**30:.0f} GiB "
+                f"(total {total / 2**30:.1f} GiB). 다른 GPU 를 쓰거나 점유가 끝난 뒤 실행하라."
+            )
     if not smoke and device.type != "cuda":
         raise RuntimeError(
             "CUDA unavailable - refusing to start a full end-to-end run on CPU. "
@@ -202,6 +221,9 @@ def run(config: dict, output: Path, smoke: bool = False) -> dict:
         torch.cuda.synchronize(device)
         torch.cuda.reset_peak_memory_stats(device)
     augment = train_cfg.get("spec_augment") or None
+    focal = train_cfg.get("focal") or None
+    supcon = train_cfg.get("supcon") or None
+    supcon_stats = {"used": 0, "anchors": 0, "rem": 0, "batches": 0}
     started, best, stale, step = time.perf_counter(), -1.0, 0, 0
     for epoch in range(max_epochs):
         model.train()
@@ -215,11 +237,28 @@ def run(config: dict, output: Path, smoke: bool = False) -> dict:
             mel = x.to(device)
             if augment is not None:
                 # 지역 이름이 dataloader batch 튜플을 가리지 않게 한다(이전 버그).
-                n_items, n_epochs = mel.shape[:2]
-                mel = spec_augment(mel.reshape(n_items * n_epochs, 1, 48, 1499), **augment).reshape(mel.shape)
+                n_items, n_epochs, n_channels = mel.shape[:3]
+                # 다채널이면 채널 축을 batch 로 펼쳐 같은 마스크 규칙을 적용한다(채널별 독립 마스킹).
+                mel = spec_augment(mel.reshape(n_items * n_epochs * n_channels, 1, 48, 1499), **augment).reshape(mel.shape)
             with torch.autocast(device_type=device.type, enabled=scaler.is_enabled()):
-                logits = model(mel, valid_in.to(device))
-                loss = criterion(logits.reshape(-1, 4), targets.reshape(-1))
+                if supcon is not None:
+                    logits, epoch_embedding = model(mel, valid_in.to(device), return_embedding=True)
+                else:
+                    logits, epoch_embedding = model(mel, valid_in.to(device)), None
+                flat_logits, flat_targets = logits.reshape(-1, 4), targets.reshape(-1)
+                if focal is not None:
+                    loss = focal_loss(flat_logits, flat_targets, criterion.weight,
+                                      gamma=float(focal["gamma"]),
+                                      label_smoothing=float(train_cfg.get("label_smoothing", 0.0)))
+                else:
+                    loss = criterion(flat_logits, flat_targets)
+                if supcon is not None:
+                    contrastive, stats = supcon_loss(epoch_embedding.reshape(-1, 192), flat_targets,
+                                                     weight=criterion.weight,
+                                                     temperature=float(supcon["temperature"]))
+                    loss = loss + float(supcon["weight"]) * contrastive
+                    supcon_stats["used"] += stats["used"]; supcon_stats["anchors"] += stats["anchors"]
+                    supcon_stats["rem"] += stats["rem_anchors"]; supcon_stats["batches"] += 1
                 if kd:
                     kd_targets = targets.clone()
                     kd_targets[~batch[7].to(device)] = -100
@@ -240,6 +279,8 @@ def run(config: dict, output: Path, smoke: bool = False) -> dict:
                 break
         score, validation_loss = _score(model, val_loader, device, criterion)
         record = {"epoch": epoch, "optimizer_steps": step, "validation_macro_f1": score,
+                  "supcon_rem_anchors_per_batch": round(supcon_stats["rem"] / max(1, supcon_stats["batches"]), 2) if supcon else None,
+                  "supcon_usable_anchor_frac": round(supcon_stats["used"] / max(1, supcon_stats["anchors"]), 3) if supcon else None,
                   "validation_loss": validation_loss, "learning_rate": optimizer.param_groups[0]["lr"],
                   "elapsed_seconds": time.perf_counter() - started}
         with (output / "history.jsonl").open("a") as stream:
@@ -287,14 +328,42 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--night-norm", action="store_true")
-    parser.add_argument("--kd", action="store_true", help="PSG teacher gated KD (a0.3, T2)")
+    parser.add_argument("--kd", action="store_true", help="PSG teacher gated KD")
+    parser.add_argument("--kd-alpha", type=float, default=0.3)
+    parser.add_argument("--layers", type=int, help="Conformer block 수 (기본: parent 설정 = 2)")
+    parser.add_argument("--manifest", type=Path, help="대체 manifest (예: 팀 5-fold CV fold 파일)")
+    parser.add_argument("--focal", type=float, metavar="GAMMA", help="focal loss gamma (weighted CE 대체)")
+    parser.add_argument("--supcon", type=float, metavar="WEIGHT", help="supervised contrastive 보조손실 가중치")
+    parser.add_argument("--post-transformer", type=int, metavar="N", help="BiLSTM 뒤에 쌓을 Transformer encoder layer 수")
+    parser.add_argument("--frontend", choices=["logmel", "pcen", "logmel_delta"], help="입력 front-end (기본 logmel)")
+    parser.add_argument("--frontend-stats", type=Path, help="변환 front-end 의 채널별 mean/std json")
     parser.add_argument("--epochs", type=int)
     args = parser.parse_args()
     config = default_config(args.seed)
     if args.night_norm:
         config["data"]["night_norm"] = True
     if args.kd:
-        config["train"]["kd"] = {"alpha": 0.3, "temperature": 2.0}
+        config["train"]["kd"] = {"alpha": float(args.kd_alpha), "temperature": 2.0}
+    if args.layers:
+        config["model"]["layers"] = int(args.layers)
+    if args.frontend and args.frontend != "logmel":
+        if not args.frontend_stats:
+            raise SystemExit("--frontend pcen/logmel_delta 는 --frontend-stats 가 필요하다 (scripts/frontend_stats.py).")
+        config["data"]["frontend"] = args.frontend
+        config["data"]["frontend_stats"] = str(args.frontend_stats.resolve())
+        config["model"]["in_channels"] = 2 if args.frontend == "logmel_delta" else 1
+    if args.post_transformer:
+        config["model"]["post_transformer_layers"] = int(args.post_transformer)
+    if args.focal:
+        config["train"]["focal"] = {"gamma": float(args.focal)}
+    if args.supcon:
+        config["train"]["supcon"] = {"weight": float(args.supcon), "temperature": 0.1}
+    if args.manifest:
+        # 팀 5-fold CV. fold 파일은 기존 manifest 와 컬럼 구조가 같고 train/val 만 재배치한다.
+        manifest = args.manifest.resolve()
+        if not manifest.is_file():
+            raise SystemExit(f"manifest not found: {manifest}")
+        config["data"]["manifest"] = str(manifest)
     if args.epochs:
         config["train"]["epochs"] = args.epochs
     result = run(config, args.output.resolve(), smoke=args.smoke)

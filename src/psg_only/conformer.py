@@ -48,14 +48,17 @@ class ConformerBlock(nn.Module):
 class ConformerEpochModel(nn.Module):
     embedding_dim = 192
 
-    def __init__(self, layers=2, num_heads=4, ff_dim=768, conv_kernel_size=31, dropout=0.2):
+    def __init__(self, layers=2, num_heads=4, ff_dim=768, conv_kernel_size=31, dropout=0.2, in_channels=1):
         super().__init__()
+        if in_channels < 1:
+            raise ValueError("in_channels must be positive.")
+        self.in_channels = int(in_channels)
         if layers < 1 or num_heads < 1 or 192 % num_heads or ff_dim < 1:
             raise ValueError("Invalid Conformer dimensions.")
         if conv_kernel_size < 1 or conv_kernel_size % 2 != 1 or not 0 <= dropout < 1:
             raise ValueError("Convolution kernel must be positive and odd; dropout must be in [0,1).")
         modules = []
-        for source, target in ((1, 32), (32, 64), (64, 96)):
+        for source, target in ((self.in_channels, 32), (32, 64), (64, 96)):
             modules.extend((nn.Conv2d(source, target, 3, stride=2, padding=1, bias=False),
                             nn.BatchNorm2d(target), nn.SiLU()))
         self.subsampling = nn.Sequential(*modules)
@@ -70,8 +73,8 @@ class ConformerEpochModel(nn.Module):
         self.head = nn.Sequential(nn.Dropout(dropout), nn.Linear(192, 4))
 
     def encode(self, mel):
-        if mel.ndim != 4 or mel.shape[1:] != (1, 48, 1499):
-            raise ValueError("Conformer requires fixed Mel shape [B,1,48,1499].")
+        if mel.ndim != 4 or mel.shape[1:] != (self.in_channels, 48, 1499):
+            raise ValueError(f"Conformer requires fixed Mel shape [B,{self.in_channels},48,1499].")
         features = self.subsampling(mel)
         if features.shape[1:] != (96, 6, 188):
             raise RuntimeError("Unexpected CNN subsampling geometry.")

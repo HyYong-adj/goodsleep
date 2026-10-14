@@ -99,6 +99,34 @@ def night_statistics(subject_root: str | Path) -> tuple[float, float]:
     return mean, std
 
 
+# ---- front-end 변환 (choihy-e023/e024). 기존 log-Mel 캐시 위에서 계산한다. ----
+PCEN_DEFAULT = dict(s=0.05, alpha=0.98, delta=2.0, r=0.5, eps=1e-6)  # 50 Hz frame rate, τ≈0.4 s
+
+
+def pcen(logmel_db: np.ndarray, s=0.05, alpha=0.98, delta=2.0, r=0.5, eps=1e-6) -> np.ndarray:
+    """Per-channel energy normalisation (Wang et al. 2017) on a [48,T] log-Mel(dB) block.
+
+    log 압축 대신 채널별 시변 자동 이득 제어를 건다. 느린 배경(환풍기, 마이크 이득)은
+    M 으로 나눠 지우고 그 위의 변화만 남긴다. 피험자별 평균이 41.6 dB 퍼져 있는 이 데이터에서
+    전역 통계 하나로 정규화하던 문제를 프레임 단위로 다룬다. IIR 은 scipy.lfilter 로 벡터화.
+    """
+    from scipy.signal import lfilter, lfilter_zi
+    power = np.power(10.0, logmel_db.astype(np.float64) / 10.0)
+    b, a = np.array([s], np.float64), np.array([1.0, -(1.0 - s)], np.float64)
+    zi = lfilter_zi(b, a)
+    # 첫 프레임으로 필터 상태를 초기화해 시작 과도를 없앤다.
+    smooth, _ = lfilter(b, a, power, axis=-1, zi=zi * power[..., :1])
+    out = np.power(power / np.power(smooth + eps, alpha) + delta, r) - delta ** r
+    return out.astype(np.float32)
+
+
+def logmel_delta(logmel_db: np.ndarray) -> np.ndarray:
+    """[48,T] -> [2,48,T]: 원본 + 시간 1차 차분(첫 프레임 복제 패딩)."""
+    x = logmel_db.astype(np.float32)
+    d = np.diff(x, axis=-1, prepend=x[..., :1])
+    return np.stack([x, d], axis=0)
+
+
 def _subject_rows(frame: pd.DataFrame, split: str, subject_limit: int | None = None) -> pd.DataFrame:
     if split not in {"train", "val"}:
         raise ValueError("Only train and val are permitted.")
@@ -250,14 +278,28 @@ class MelWindowDataset(Dataset):
     """
 
     def __init__(self, manifest_path, cache_root, stats_path, split, input_epochs=40,
-                 target_epochs=20, stride=20, subject_limit=None, night_norm=False):
+                 target_epochs=20, stride=20, subject_limit=None, night_norm=False,
+                 frontend="logmel", frontend_stats=None):
         context_options(dict(input_epochs=input_epochs, target_epochs=target_epochs, stride=stride))
         self.input_epochs, self.target_epochs = input_epochs, target_epochs
         self.left_context = (input_epochs - target_epochs) // 2
         self.frame = _subject_rows(read_manifest(manifest_path), split, subject_limit)
         self.root = resolve(cache_root)
         self.night_norm = bool(night_norm)
+        if frontend not in {"logmel", "pcen", "logmel_delta"}:
+            raise ValueError(f"Unknown frontend {frontend!r}.")
+        self.frontend = frontend
+        self.channels = 2 if frontend == "logmel_delta" else 1
         self.mean, self.std = train_stats(stats_path)
+        # 변환된 front-end 는 분포가 달라 log-Mel 용 train 통계를 쓸 수 없다. 별도 stats 필수.
+        if frontend != "logmel":
+            if frontend_stats is None:
+                raise ValueError(f"frontend={frontend!r} requires frontend_stats (per-channel mean/std json).")
+            payload = json.loads(Path(frontend_stats).read_text())
+            self.fe_mean = np.asarray(payload["mean"], np.float32).reshape(self.channels, 1, 1)
+            self.fe_std = np.asarray(payload["std"], np.float32).reshape(self.channels, 1, 1)
+            if not np.all(np.isfinite(self.fe_std)) or np.any(self.fe_std <= 0):
+                raise ValueError("Invalid frontend stats.")
         self._night_stats: dict[str, tuple[float, float]] = {}
         self._mels: dict[str, np.ndarray] = {}
         self.index: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
@@ -312,7 +354,7 @@ class MelWindowDataset(Dataset):
         mels = self._mel_array(ref.subject_id)
         mean, std = self.norm_stats(ref.subject_id)
 
-        x = np.zeros((self.input_epochs, 1, 48, 1499), np.float32)
+        x = np.zeros((self.input_epochs, self.channels, 48, 1499), np.float32)
         input_valid = np.zeros(self.input_epochs, bool)
         source_start = max(0, ref.target_start - self.left_context)
         source_end = min(total, ref.target_start + self.target_epochs + self.left_context)
@@ -322,7 +364,12 @@ class MelWindowDataset(Dataset):
             if not valid[epoch]:
                 continue
             block = np.asarray(mels[mapping[epoch]], dtype=np.float32)
-            x[destination + offset, 0] = (block - mean) / std
+            if self.frontend == "logmel":
+                x[destination + offset, 0] = (block - mean) / std
+            elif self.frontend == "pcen":
+                x[destination + offset, 0] = (pcen(block, **PCEN_DEFAULT) - self.fe_mean[0]) / self.fe_std[0]
+            else:  # logmel_delta
+                x[destination + offset] = (logmel_delta(block) - self.fe_mean) / self.fe_std
             input_valid[destination + offset] = True
 
         y = np.full(self.target_epochs, -100, np.int64)
